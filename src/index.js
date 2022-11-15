@@ -42,7 +42,11 @@ app.post("/sign-in", async (req, res) => {
 		if (!bcrypt.compareSync(value.password, isRegistered.password)) {
 			return res.status(401).send("Wrong password!");
 		}
-		res.status(200).send("Ok");
+		delete isRegistered.password;
+		delete isRegistered.repassword;
+		const token = uuid();
+		await sessionsCollection.insertOne({ userId: isRegistered._id, token });
+		res.status(200).send({ token, ...isRegistered });
 	} catch (error) {
 		console.log("User trying to sign in user returned: ", error);
 	}
@@ -60,12 +64,11 @@ app.post("/sign-up", async (req, res) => {
 			return res.status(409).send("User already exists!");
 		}
 		const passwordHash = bcrypt.hashSync(value.password, 10);
-		const user = await usersCollection.insertOne({
+		delete value.repassword;
+		await usersCollection.insertOne({
 			...value,
 			password: passwordHash,
 		});
-		const token = uuid();
-		await sessionsCollection.insertOne({ token, userId: user.insertedId });
 		res.sendStatus(201);
 	} catch (error) {
 		console.log("User trying to sign up returned: ", error);
