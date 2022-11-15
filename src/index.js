@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { MongoClient } from "mongodb";
 import bcrypt from "bcrypt";
-import Joi from "joi";
+import { v4 as uuid } from "uuid";
 import { signInValidation, signUpValidation } from "./validationSchema.js";
 
 dotenv.config();
@@ -30,7 +30,6 @@ const userExpensesCollection = db.collection("userExpenses");
 
 app.post("/sign-in", async (req, res) => {
 	const signInInfo = req.body;
-	console.log(signInInfo);
 	const { error, value } = signInValidation.validate(signInInfo);
 	if (error) {
 		return res.status(401).send(error.message);
@@ -43,7 +42,7 @@ app.post("/sign-in", async (req, res) => {
 		if (!bcrypt.compareSync(value.password, isRegistered.password)) {
 			return res.status(401).send("Wrong password!");
 		}
-		res.status(200);
+		res.status(200).send("Ok");
 	} catch (error) {
 		console.log("User trying to sign in user returned: ", error);
 	}
@@ -51,7 +50,6 @@ app.post("/sign-in", async (req, res) => {
 
 app.post("/sign-up", async (req, res) => {
 	const signUpInfo = req.body;
-	console.log(signUpInfo);
 	const { error, value } = signUpValidation.validate(signUpInfo);
 	if (error) {
 		return res.status(400).send(error.message);
@@ -62,7 +60,12 @@ app.post("/sign-up", async (req, res) => {
 			return res.status(409).send("User already exists!");
 		}
 		const passwordHash = bcrypt.hashSync(value.password, 10);
-		await usersCollection.insertOne({ ...value, password: passwordHash });
+		const user = await usersCollection.insertOne({
+			...value,
+			password: passwordHash,
+		});
+		const token = uuid();
+		await sessionsCollection.insertOne({ token, userId: user.insertedId });
 		res.sendStatus(201);
 	} catch (error) {
 		console.log("User trying to sign up returned: ", error);
