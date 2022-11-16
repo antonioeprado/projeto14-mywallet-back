@@ -75,6 +75,18 @@ app.post("/sign-up", async (req, res) => {
 	}
 });
 
+app.get("/expenses", async (req, res) => {
+	const userToken = req.body.authorization.replace("Bearer ", "");
+	const user = await sessionsCollection.findOne({ token: userToken });
+	if (!user) {
+		return res.status(404).send("Invalid token!");
+	}
+	const userExpenses = await userExpensesCollection.findMany({
+		_id: user.userId,
+	});
+	res.status(200).send(userExpenses);
+});
+
 app.listen(5000, () => {
 	console.log("Server running on port: 5000");
 });
