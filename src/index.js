@@ -5,6 +5,7 @@ import { MongoClient } from "mongodb";
 import bcrypt from "bcrypt";
 import { v4 as uuid } from "uuid";
 import { signInValidation, signUpValidation } from "./validationSchema.js";
+import dayjs from "dayjs";
 
 dotenv.config();
 
@@ -81,21 +82,39 @@ app.post("/sign-up", async (req, res) => {
 });
 
 app.get("/expenses", async (req, res) => {
-	const user = validateToken(req.body.authorization);
+	const user = await validateToken(req.headers.authorization);
 	if (!user) {
 		return res.status(404).send("Invalid token!");
 	}
 	const userExpenses = await userExpensesCollection.findOne({
-		_id: user.userId,
+		userId: user.userId,
 	});
+	console.log(userExpenses);
 	res.status(200).send(userExpenses);
 });
 
 app.post("/expenses", async (req, res) => {
-	const user = validateToken(req.body.authorization);
-	if (!user) {
-		return res.status(404).send("Invalid token!");
+	const user = await validateToken(req.headers.authorization);
+	const expenses = req.body;
+	if (!user) res.status(404).send("Invalid token!");
+	if (!expenses) res.sendStatus(400);
+	expenses.date = dayjs().format("DD/MM");
+	const userExpenses = await userExpensesCollection.findOne({
+		userId: user.userId,
+	});
+	if (!userExpenses) {
+		await userExpensesCollection.insertOne({
+			userId: user.userId,
+			expenses: [{ ...expenses, item: 1 }],
+		});
+		return res.sendStatus(201);
 	}
+	const index = userExpenses.expenses.length;
+	expenses.item = index + 1;
+	await userExpensesCollection.updateOne(userExpenses, {
+		$push: { expenses },
+	});
+	res.sendStatus(200);
 });
 
 app.listen(5000, () => {
