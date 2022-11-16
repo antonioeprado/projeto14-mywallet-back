@@ -28,6 +28,11 @@ const usersCollection = db.collection("users");
 const sessionsCollection = db.collection("sessions");
 const userExpensesCollection = db.collection("userExpenses");
 
+async function validateToken(requestToken) {
+	const token = requestToken.replace("Bearer ", "");
+	return await sessionsCollection.findOne({ token });
+}
+
 app.post("/sign-in", async (req, res) => {
 	const signInInfo = req.body;
 	const { error, value } = signInValidation.validate(signInInfo);
@@ -76,15 +81,21 @@ app.post("/sign-up", async (req, res) => {
 });
 
 app.get("/expenses", async (req, res) => {
-	const userToken = req.body.authorization.replace("Bearer ", "");
-	const user = await sessionsCollection.findOne({ token: userToken });
+	const user = validateToken(req.body.authorization);
 	if (!user) {
 		return res.status(404).send("Invalid token!");
 	}
-	const userExpenses = await userExpensesCollection.findMany({
+	const userExpenses = await userExpensesCollection.findOne({
 		_id: user.userId,
 	});
 	res.status(200).send(userExpenses);
+});
+
+app.post("/expenses", async (req, res) => {
+	const user = validateToken(req.body.authorization);
+	if (!user) {
+		return res.status(404).send("Invalid token!");
+	}
 });
 
 app.listen(5000, () => {
