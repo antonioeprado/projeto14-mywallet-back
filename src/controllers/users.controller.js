@@ -10,7 +10,22 @@ export const getExpenses = async (req, res) => {
 	const userExpenses = await userExpensesCollection.findOne({
 		userId: user.userId,
 	});
-	console.log(userExpenses);
+	const aggPipeline = [
+		{
+			$match: { userId: user.userId },
+		},
+		{
+			$unwind: "$expenses",
+		},
+		{
+			$group: {
+				_id: null,
+				total: { $sum: "$expenses.value" },
+			},
+		},
+	];
+	const sum = await userExpensesCollection.aggregate(aggPipeline).toArray();
+	userExpenses.total = sum.pop().total;
 	res.status(200).send(userExpenses);
 };
 
@@ -19,21 +34,22 @@ export const postExpenses = async (req, res) => {
 	const expenses = req.body;
 	if (!user) res.status(404).send("Invalid token!");
 	if (!expenses) res.sendStatus(400);
-	expenses.date = dayjs().format("DD/MM");
+	const { value, description, type } = expenses;
+	const date = dayjs().format("DD/MM");
 	const userExpenses = await userExpensesCollection.findOne({
 		userId: user.userId,
 	});
 	if (!userExpenses) {
 		await userExpensesCollection.insertOne({
 			userId: user.userId,
-			expenses: [{ ...expenses, item: 1 }],
+			expenses: [{ item: 1, value: Number(value), description, type, date }],
 		});
 		return res.sendStatus(201);
 	}
-	const index = userExpenses.expenses.length;
-	expenses.item = index + 1;
+	const index = userExpenses.expenses.length + 1;
+	const expense = { index, value: Number(value), description, type, date };
 	await userExpensesCollection.updateOne(userExpenses, {
-		$push: { expenses },
+		$push: { expenses: expense },
 	});
-	res.sendStatus(200);
+	res.sendStatus(201);
 };
