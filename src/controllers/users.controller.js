@@ -10,6 +10,7 @@ export const getExpenses = async (req, res) => {
 	const userExpenses = await userExpensesCollection.findOne({
 		userId: user.userId,
 	});
+	if (!userExpenses) return res.sendStatus(200);
 	const aggPipeline = [
 		{
 			$match: { userId: user.userId },
@@ -18,21 +19,29 @@ export const getExpenses = async (req, res) => {
 			$unwind: "$expenses",
 		},
 		{
+			$project: {
+				value: {
+					$cond: {
+						if: { $eq: ["$expenses.type", "in"] },
+						then: "$expenses.value",
+						else: { $multiply: ["$expenses.value", -1] },
+					},
+				},
+			},
+		},
+		{
 			$group: {
 				_id: null,
-				total: { $sum: "$expenses.value" },
+				total: { $sum: "$value" },
 			},
 		},
 	];
-	if (userExpenses) {
-		const sum = await userExpensesCollection.aggregate(aggPipeline).toArray();
-		userExpenses.total = sum.pop().total.toLocaleString("pt-BR");
-		userExpenses.expenses.forEach((expense) => {
-			expense.value = expense.value.toLocaleString("pt-BR");
-		});
-		return res.status(200).send(userExpenses);
-	}
-	res.sendStatus(200);
+	const aggResult = await userExpensesCollection
+		.aggregate(aggPipeline)
+		.toArray();
+	const total = aggResult.pop().total;
+	userExpenses.total = total;
+	res.status(200).send(userExpenses);
 };
 
 export const postExpenses = async (req, res) => {
@@ -48,12 +57,26 @@ export const postExpenses = async (req, res) => {
 	if (!userExpenses) {
 		await userExpensesCollection.insertOne({
 			userId: user.userId,
-			expenses: [{ item: 1, value: Number(value), description, type, date }],
+			expenses: [
+				{
+					item: 1,
+					value: parseFloat(value),
+					description,
+					type,
+					date,
+				},
+			],
 		});
 		return res.sendStatus(201);
 	}
-	const index = userExpenses.expenses.length + 1;
-	const expense = { index, value: Number(value), description, type, date };
+	const item = userExpenses.expenses.length + 1;
+	const expense = {
+		item,
+		value: parseFloat(value),
+		description,
+		type,
+		date,
+	};
 	await userExpensesCollection.updateOne(userExpenses, {
 		$push: { expenses: expense },
 	});
