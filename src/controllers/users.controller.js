@@ -24,12 +24,15 @@ export const getExpenses = async (req, res) => {
 			},
 		},
 	];
-	const sum = await userExpensesCollection.aggregate(aggPipeline).toArray();
-	userExpenses.total = sum.pop().total.toLocaleString("pt-BR");
-	userExpenses.expenses.forEach((expense) => {
-		expense.value = expense.value.toLocaleString("pt-BR");
-	});
-	res.status(200).send(userExpenses);
+	if (userExpenses) {
+		const sum = await userExpensesCollection.aggregate(aggPipeline).toArray();
+		userExpenses.total = sum.pop().total.toLocaleString("pt-BR");
+		userExpenses.expenses.forEach((expense) => {
+			expense.value = expense.value.toLocaleString("pt-BR");
+		});
+		return res.status(200).send(userExpenses);
+	}
+	res.sendStatus(200);
 };
 
 export const postExpenses = async (req, res) => {
@@ -38,7 +41,6 @@ export const postExpenses = async (req, res) => {
 	if (!user) res.status(404).send("Invalid token!");
 	if (!expenses) res.sendStatus(400);
 	const { value, description, type } = expenses;
-	if (value.includes(",")) value.replace(",", ".");
 	const date = dayjs().format("DD/MM");
 	const userExpenses = await userExpensesCollection.findOne({
 		userId: user.userId,
