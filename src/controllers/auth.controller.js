@@ -11,14 +11,10 @@ export async function validateToken(requestToken) {
 export const userSignIn = async (req, res) => {
 	const signInInfo = req.body;
 	const { error, value } = signInValidation.validate(signInInfo);
-	if (error) {
-		return res.status(401).send(error.message);
-	}
+	if (error) return res.status(401).send(error.message);
 	try {
 		const isRegistered = await usersCollection.findOne({ email: value.email });
-		if (!isRegistered) {
-			return res.status(404).send("User doesn't exist!");
-		}
+		if (!isRegistered) return res.status(404).send("User doesn't exist!");
 		if (!bcrypt.compareSync(value.password, isRegistered.password)) {
 			return res.status(401).send("Wrong password!");
 		}
@@ -35,14 +31,10 @@ export const userSignIn = async (req, res) => {
 export const userSignUp = async (req, res) => {
 	const signUpInfo = req.body;
 	const { error, value } = signUpValidation.validate(signUpInfo);
-	if (error) {
-		return res.status(400).send(error.message);
-	}
+	if (error) return res.status(400).send(error.message);
 	try {
 		const isDuplicate = await usersCollection.findOne({ email: value.email });
-		if (isDuplicate) {
-			return res.status(409).send("User already exists!");
-		}
+		if (isDuplicate) return res.status(409).send("User already exists!");
 		const passwordHash = bcrypt.hashSync(value.password, 10);
 		delete value.repassword;
 		await usersCollection.insertOne({

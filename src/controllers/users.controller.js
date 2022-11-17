@@ -10,7 +10,10 @@ export const getExpenses = async (req, res) => {
 	const userExpenses = await userExpensesCollection.findOne({
 		userId: user.userId,
 	});
-	if (!userExpenses) return res.sendStatus(200);
+	if (!userExpenses || userExpenses.expenses.length === 0) {
+		return res.sendStatus(200);
+	}
+
 	const aggPipeline = [
 		{
 			$match: { userId: user.userId },
@@ -81,4 +84,20 @@ export const postExpenses = async (req, res) => {
 		$push: { expenses: expense },
 	});
 	res.sendStatus(201);
+};
+
+export const deleteExpenses = async (req, res) => {
+	const { item } = req.body;
+	console.log(item);
+	const { userId } = await validateToken(req.headers.authorization);
+	if (!userId) return res.status(404).send("Invalid token!");
+	try {
+		await userExpensesCollection.updateOne(
+			{ userId },
+			{ $pull: { expenses: { item } } }
+		);
+		res.sendStatus(200);
+	} catch (error) {
+		console.log(error);
+	}
 };
