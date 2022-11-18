@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { validateToken } from "./auth.controller.js";
-import { userExpensesCollection } from "../db/mongodb.js";
+import { userExpensesCollection } from "../database/mongodb.js";
 
 export const getExpenses = async (req, res) => {
 	const user = await validateToken(req.headers.authorization);
@@ -88,7 +88,6 @@ export const postExpenses = async (req, res) => {
 
 export const deleteExpenses = async (req, res) => {
 	const { item } = req.body;
-	console.log(item);
 	const { userId } = await validateToken(req.headers.authorization);
 	if (!userId) return res.status(404).send("Invalid token!");
 	try {
@@ -97,6 +96,27 @@ export const deleteExpenses = async (req, res) => {
 			{ $pull: { expenses: { item } } }
 		);
 		res.sendStatus(200);
+	} catch (error) {
+		console.log(error);
+	}
+};
+
+export const putExpenses = async (req, res) => {
+	const { userId } = await validateToken(req.headers.authorization);
+	const { value, description, type, item } = req.body;
+	if (!userId) return res.status(404).send("Invalid token!");
+	try {
+		await userExpensesCollection.updateOne(
+			{ userId, "$expenses.item": item },
+			{
+				$set: {
+					item,
+					value,
+					description,
+					type,
+				},
+			}
+		);
 	} catch (error) {
 		console.log(error);
 	}

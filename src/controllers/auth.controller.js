@@ -1,7 +1,7 @@
 import { signInValidation, signUpValidation } from "../validationSchema.js";
 import { v4 as uuid } from "uuid";
 import bcrypt from "bcrypt";
-import { usersCollection, sessionsCollection } from "../db/mongodb.js";
+import { usersCollection, sessionsCollection } from "../database/mongodb.js";
 
 export async function validateToken(requestToken) {
 	const token = requestToken.replace("Bearer ", "");
