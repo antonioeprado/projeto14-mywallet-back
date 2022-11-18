@@ -3,11 +3,6 @@ import { v4 as uuid } from "uuid";
 import bcrypt from "bcrypt";
 import { usersCollection, sessionsCollection } from "../database/mongodb.js";
 
-export async function validateToken(requestToken) {
-	const token = requestToken.replace("Bearer ", "");
-	return await sessionsCollection.findOne({ token });
-}
-
 export const userSignIn = async (req, res) => {
 	const signInInfo = req.body;
 	const { error, value } = signInValidation.validate(signInInfo);

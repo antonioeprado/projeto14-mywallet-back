@@ -1,22 +1,11 @@
 import dayjs from "dayjs";
-import { validateToken } from "./auth.controller.js";
 import { userExpensesCollection } from "../database/mongodb.js";
 
 export const getExpenses = async (req, res) => {
-	const user = await validateToken(req.headers.authorization);
-	if (!user) {
-		return res.status(404).send("Invalid token!");
-	}
-	const userExpenses = await userExpensesCollection.findOne({
-		userId: user.userId,
-	});
-	if (!userExpenses || userExpenses.expenses.length === 0) {
-		return res.sendStatus(200);
-	}
-
+	const { userId } = req.user.userId;
 	const aggPipeline = [
 		{
-			$match: { userId: user.userId },
+			$match: { userId },
 		},
 		{
 			$unwind: "$expenses",
@@ -48,14 +37,10 @@ export const getExpenses = async (req, res) => {
 };
 
 export const postExpenses = async (req, res) => {
-	const user = await validateToken(req.headers.authorization);
-	const expenses = req.body;
-	if (!user) res.status(404).send("Invalid token!");
-	if (!expenses) res.sendStatus(400);
-	const { value, description, type } = expenses;
+	const { value, description, type } = req.expenses;
 	const date = dayjs().format("DD/MM");
 	const userExpenses = await userExpensesCollection.findOne({
-		userId: user.userId,
+		userId: req.user.userId,
 	});
 	if (!userExpenses) {
 		await userExpensesCollection.insertOne({
@@ -87,9 +72,8 @@ export const postExpenses = async (req, res) => {
 };
 
 export const deleteExpenses = async (req, res) => {
-	const { item } = req.body;
-	const { userId } = await validateToken(req.headers.authorization);
-	if (!userId) return res.status(404).send("Invalid token!");
+	const { item } = req.item;
+	const { userId } = req.user.userId;
 	try {
 		await userExpensesCollection.updateOne(
 			{ userId },
@@ -102,9 +86,8 @@ export const deleteExpenses = async (req, res) => {
 };
 
 export const putExpenses = async (req, res) => {
-	const { userId } = await validateToken(req.headers.authorization);
+	const { userId } = req.user.userId;
 	const { value, description, type, item } = req.body;
-	if (!userId) return res.status(404).send("Invalid token!");
 	try {
 		await userExpensesCollection.updateOne(
 			{ userId, "$expenses.item": item },
@@ -117,6 +100,7 @@ export const putExpenses = async (req, res) => {
 				},
 			}
 		);
+		res.sendStatus(200);
 	} catch (error) {
 		console.log(error);
 	}
