@@ -1,52 +1,29 @@
-import { signInValidation, signUpValidation } from "../validationSchema.js";
 import { v4 as uuid } from "uuid";
 import bcrypt from "bcrypt";
-import { usersCollection, sessionsCollection } from "../db/mongodb.js";
-
-export async function validateToken(requestToken) {
-	const token = requestToken.replace("Bearer ", "");
-	return await sessionsCollection.findOne({ token });
-}
+import { usersCollection, sessionsCollection } from "../database/mongodb.js";
 
 export const userSignIn = async (req, res) => {
-	const signInInfo = req.body;
-	const { error, value } = signInValidation.validate(signInInfo);
-	if (error) {
-		return res.status(401).send(error.message);
-	}
 	try {
-		const isRegistered = await usersCollection.findOne({ email: value.email });
-		if (!isRegistered) {
-			return res.status(404).send("User doesn't exist!");
-		}
-		if (!bcrypt.compareSync(value.password, isRegistered.password)) {
-			return res.status(401).send("Wrong password!");
-		}
-		delete isRegistered.password;
-		delete isRegistered.repassword;
 		const token = uuid();
-		await sessionsCollection.insertOne({ userId: isRegistered._id, token });
-		res.status(200).send({ token, ...isRegistered });
+		const userId = req.user._id;
+		const user = { userId, token };
+		await sessionsCollection.insertOne(user);
+		const { name, email } = req.user;
+		res.status(200).send({ name, email, token });
 	} catch (error) {
 		console.log("User trying to sign in user returned: ", error);
 	}
 };
 
 export const userSignUp = async (req, res) => {
-	const signUpInfo = req.body;
-	const { error, value } = signUpValidation.validate(signUpInfo);
-	if (error) {
-		return res.status(400).send(error.message);
-	}
+	const { name, email, password } = req.user;
 	try {
-		const isDuplicate = await usersCollection.findOne({ email: value.email });
-		if (isDuplicate) {
-			return res.status(409).send("User already exists!");
-		}
-		const passwordHash = bcrypt.hashSync(value.password, 10);
-		delete value.repassword;
+		const isDuplicate = await usersCollection.findOne({ email });
+		if (isDuplicate) return res.status(409).send("User already exists!");
+		const passwordHash = bcrypt.hashSync(password, 10);
 		await usersCollection.insertOne({
-			...value,
+			name,
+			email,
 			password: passwordHash,
 		});
 		res.sendStatus(201);

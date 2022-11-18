@@ -1,61 +1,104 @@
 import dayjs from "dayjs";
-import { validateToken } from "./auth.controller.js";
-import { userExpensesCollection } from "../db/mongodb.js";
+import { userExpensesCollection } from "../database/mongodb.js";
+import { ObjectID } from "bson";
 
 export const getExpenses = async (req, res) => {
-	const user = await validateToken(req.headers.authorization);
-	if (!user) {
-		return res.status(404).send("Invalid token!");
-	}
-	const userExpenses = await userExpensesCollection.findOne({
-		userId: user.userId,
-	});
+	const { userId } = req.user;
 	const aggPipeline = [
 		{
-			$match: { userId: user.userId },
+			$match: { userId },
 		},
 		{
 			$unwind: "$expenses",
 		},
 		{
+			$project: {
+				value: {
+					$cond: {
+						if: { $eq: ["$expenses.type", "in"] },
+						then: "$expenses.value",
+						else: { $multiply: ["$expenses.value", -1] },
+					},
+				},
+			},
+		},
+		{
 			$group: {
 				_id: null,
-				total: { $sum: "$expenses.value" },
+				total: { $sum: "$value" },
 			},
 		},
 	];
-	if (userExpenses) {
-		const sum = await userExpensesCollection.aggregate(aggPipeline).toArray();
-		userExpenses.total = sum.pop().total.toLocaleString("pt-BR");
-		userExpenses.expenses.forEach((expense) => {
-			expense.value = expense.value.toLocaleString("pt-BR");
-		});
-		return res.status(200).send(userExpenses);
-	}
-	res.sendStatus(200);
+	const aggResult = await userExpensesCollection
+		.aggregate(aggPipeline)
+		.toArray();
+	const total = aggResult.pop().total;
+	req.expenses.total = total;
+	res.status(200).send(req.expenses);
 };
 
 export const postExpenses = async (req, res) => {
-	const user = await validateToken(req.headers.authorization);
-	const expenses = req.body;
-	if (!user) res.status(404).send("Invalid token!");
-	if (!expenses) res.sendStatus(400);
-	const { value, description, type } = expenses;
+	const { value, description, type } = req.expenses;
+	const { userId } = req.user;
 	const date = dayjs().format("DD/MM");
 	const userExpenses = await userExpensesCollection.findOne({
-		userId: user.userId,
+		userId,
 	});
 	if (!userExpenses) {
 		await userExpensesCollection.insertOne({
-			userId: user.userId,
-			expenses: [{ item: 1, value: Number(value), description, type, date }],
+			userId,
+			expenses: [
+				{
+					_id: new ObjectID(),
+					value: parseFloat(value),
+					description,
+					type,
+					date,
+				},
+			],
 		});
 		return res.sendStatus(201);
 	}
-	const index = userExpenses.expenses.length + 1;
-	const expense = { index, value: Number(value), description, type, date };
+	const expense = {
+		_id: new ObjectID(),
+		value: parseFloat(value),
+		description,
+		type,
+		date,
+	};
 	await userExpensesCollection.updateOne(userExpenses, {
 		$push: { expenses: expense },
 	});
 	res.sendStatus(201);
+};
+
+export const deleteExpenses = async (req, res) => {
+	const item = req.item;
+	try {
+		await userExpensesCollection.updateOne(
+			{ "expenses._id": ObjectID(item) },
+			{ $pull: { expenses: { _id: ObjectID(item) } } }
+		);
+		res.sendStatus(200);
+	} catch (error) {
+		console.log(error);
+	}
+};
+
+export const putExpenses = async (req, res) => {
+	const { value, description, item } = req.body;
+	try {
+		await userExpensesCollection.updateOne(
+			{ "expenses._id": ObjectID(item) },
+			{
+				$set: {
+					"expenses.$.value": value,
+					"expenses.$.description": description,
+				},
+			}
+		);
+		res.sendStatus(200);
+	} catch (error) {
+		console.log(error);
+	}
 };
