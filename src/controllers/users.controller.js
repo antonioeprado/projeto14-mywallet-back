@@ -1,8 +1,9 @@
 import dayjs from "dayjs";
 import { userExpensesCollection } from "../database/mongodb.js";
+import { ObjectID } from "bson";
 
 export const getExpenses = async (req, res) => {
-	const { userId } = req.user.userId;
+	const { userId } = req.user;
 	const aggPipeline = [
 		{
 			$match: { userId },
@@ -32,22 +33,23 @@ export const getExpenses = async (req, res) => {
 		.aggregate(aggPipeline)
 		.toArray();
 	const total = aggResult.pop().total;
-	userExpenses.total = total;
-	res.status(200).send(userExpenses);
+	req.expenses.total = total;
+	res.status(200).send(req.expenses);
 };
 
 export const postExpenses = async (req, res) => {
 	const { value, description, type } = req.expenses;
+	const { userId } = req.user;
 	const date = dayjs().format("DD/MM");
 	const userExpenses = await userExpensesCollection.findOne({
-		userId: req.user.userId,
+		userId,
 	});
 	if (!userExpenses) {
 		await userExpensesCollection.insertOne({
-			userId: user.userId,
+			userId,
 			expenses: [
 				{
-					item: 1,
+					_id: new ObjectID(),
 					value: parseFloat(value),
 					description,
 					type,
@@ -57,9 +59,8 @@ export const postExpenses = async (req, res) => {
 		});
 		return res.sendStatus(201);
 	}
-	const item = userExpenses.expenses.length + 1;
 	const expense = {
-		item,
+		_id: new ObjectID(),
 		value: parseFloat(value),
 		description,
 		type,
@@ -72,12 +73,11 @@ export const postExpenses = async (req, res) => {
 };
 
 export const deleteExpenses = async (req, res) => {
-	const { item } = req.item;
-	const { userId } = req.user.userId;
+	const item = req.item;
 	try {
 		await userExpensesCollection.updateOne(
-			{ userId },
-			{ $pull: { expenses: { item } } }
+			{ "expenses._id": ObjectID(item) },
+			{ $pull: { expenses: { _id: ObjectID(item) } } }
 		);
 		res.sendStatus(200);
 	} catch (error) {
@@ -86,17 +86,14 @@ export const deleteExpenses = async (req, res) => {
 };
 
 export const putExpenses = async (req, res) => {
-	const { userId } = req.user.userId;
-	const { value, description, type, item } = req.body;
+	const { value, description, item } = req.body;
 	try {
 		await userExpensesCollection.updateOne(
-			{ userId, "$expenses.item": item },
+			{ "expenses._id": ObjectID(item) },
 			{
 				$set: {
-					item,
-					value,
-					description,
-					type,
+					"expenses.$.value": value,
+					"expenses.$.description": description,
 				},
 			}
 		);

@@ -1,5 +1,7 @@
+import { userExpensesCollection } from "../database/mongodb.js";
+
 export async function findExpenses(req, res, next) {
-	const { userId } = req.user.userId;
+	const { userId } = req.user;
 	const userExpenses = await userExpensesCollection.findOne({
 		userId,
 	});
