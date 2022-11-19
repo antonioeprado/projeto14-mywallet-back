@@ -74,30 +74,35 @@ export const postExpenses = async (req, res) => {
 
 export const deleteExpenses = async (req, res) => {
 	const item = req.item;
+	const { userId } = req.user;
 	try {
 		await userExpensesCollection.updateOne(
 			{ "expenses._id": ObjectID(item) },
 			{ $pull: { expenses: { _id: ObjectID(item) } } }
 		);
-		res.sendStatus(200);
+		const expenses = await userExpensesCollection.findOne({ userId });
+		res.status(200).send(expenses);
+		// res.sendStatus(200);
 	} catch (error) {
 		console.log(error);
 	}
 };
 
 export const putExpenses = async (req, res) => {
+	const { userId } = req.user;
 	const { value, description, item } = req.body;
 	try {
 		await userExpensesCollection.updateOne(
 			{ "expenses._id": ObjectID(item) },
 			{
 				$set: {
-					"expenses.$.value": value,
+					"expenses.$.value": Number(value),
 					"expenses.$.description": description,
 				},
 			}
 		);
-		res.sendStatus(200);
+		const expenses = userExpensesCollection.findOne({ userId });
+		res.status(200).send(expenses);
 	} catch (error) {
 		console.log(error);
 	}
