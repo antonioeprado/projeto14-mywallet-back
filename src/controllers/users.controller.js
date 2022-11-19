@@ -82,7 +82,6 @@ export const deleteExpenses = async (req, res) => {
 		);
 		const expenses = await userExpensesCollection.findOne({ userId });
 		res.status(200).send(expenses);
-		// res.sendStatus(200);
 	} catch (error) {
 		console.log(error);
 	}
